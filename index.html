@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>스마트 설문 시스템</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; font-family: 'Noto Sans KR', sans-serif; }
+        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background-color: #333; }
+
+        /* 배경 이미지 */
+        .bg-container {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), 
+                        url('https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=1600&q=80');
+            background-size: cover; background-position: center; z-index: -1;
+        }
+
+        .main-screen {
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            height: 100vh; color: white;
+        }
+
+        /* 톱니바퀴 버튼 */
+        .settings-btn {
+            position: absolute; top: 25px; right: 25px; font-size: 30px; 
+            background: none; border: none; color: white; cursor: pointer; z-index: 10;
+        }
+
+        /* 구글 연동 버튼 */
+        .google-link-btn {
+            background: white; color: #333; border: none; padding: 12px 20px; 
+            border-radius: 30px; font-weight: 700; margin-bottom: 40px;
+            display: flex; align-items: center; gap: 8px; cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        /* 참가하기 버튼 */
+        .participate-btn {
+            width: 200px; height: 200px; border-radius: 50%;
+            background-color: #34A853; color: white; font-size: 32px; 
+            font-weight: 700; border: none; cursor: pointer;
+            box-shadow: 0 10px 30px rgba(52, 168, 83, 0.5); transition: transform 0.1s;
+        }
+        .participate-btn:active { transform: scale(0.95); }
+
+        /* 모달(팝업) 창 */
+        .modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0,0,0,0.7); z-index: 100; justify-content: center; align-items: center;
+        }
+        .modal-content {
+            background: white; width: 90%; max-width: 400px; border-radius: 15px; 
+            padding: 25px; color: #333;
+        }
+        
+        h3 { margin-top: 0; color: #1a73e8; }
+        input, select {
+            width: 100%; padding: 12px; margin: 10px 0;
+            border: 1px solid #ccc; border-radius: 8px; font-size: 16px;
+        }
+        .btn-group { display: flex; gap: 10px; margin-top: 20px; }
+        .primary-btn { flex: 1; background: #1a73e8; color: white; border: none; padding: 15px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .secondary-btn { flex: 1; background: #eee; border: none; padding: 15px; border-radius: 8px; cursor: pointer; font-weight: bold; color: #555;}
+        
+        .survey-list-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 15px 0; border-bottom: 1px solid #eee;
+        }
+        .delete-text { color: red; font-weight: bold; cursor: pointer; padding: 5px; }
+    </style>
+</head>
+<body>
+
+    <div class="bg-container"></div>
+
+    <div class="main-screen">
+        <button type="button" class="settings-btn" id="btnSettings">⚙️</button>
+        
+        <button type="button" class="google-link-btn" id="btnGoogle">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" width="18" alt="G">
+            내 구글 계정과 연동
+        </button>
+
+        <button type="button" class="participate-btn" id="btnParticipate">참가하기</button>
+    </div>
+
+    <div id="adminLoginModal" class="modal">
+        <div class="modal-content">
+            <h3>관리자 모드</h3>
+            <p style="font-size: 14px; color: #666; margin-bottom: 15px;">휴대폰번호와 네자리숫자의 비밀번호를 넣으세요.</p>
+            <input type="number" id="adminPhone" placeholder="휴대폰 번호 (- 없이 입력)">
+            <input type="password" id="adminPin" maxlength="4" placeholder="비밀번호 4자리">
+            <div class="btn-group">
+                <button type="button" class="secondary-btn" id="btnCloseLogin">취소</button>
+                <button type="button" class="primary-btn" id="btnLoginSubmit">로그인</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="adminDashboard" class="modal">
+        <div class="modal-content">
+            <h3>설문지 관리 창</h3>
+            <div id="surveyList" style="margin-bottom: 20px; max-height: 200px; overflow-y: auto;">
+                </div>
+            <button type="button" class="primary-btn" style="width: 100%; margin-bottom: 10px;" id="btnOpenCreate">➕ 새로 만들기</button>
+            <button type="button" class="secondary-btn" style="width: 100%;" id="btnCloseDashboard">닫기</button>
+        </div>
+    </div>
+
+    <div id="createSurveyModal" class="modal">
+        <div class="modal-content">
+            <h3>새 설문지 만들기</h3>
+            <label style="font-size: 14px; font-weight: bold;">설문 제목 (참여 링크 역할)</label>
+            <input type="text" id="newSurveyTitle" placeholder="예: 2026년 상반기 만족도 조사">
+            
+            <label style="font-size: 14px; font-weight: bold; margin-top: 15px; display: block;">문항 유형</label>
+            <select id="questionType">
+                <option value="객관식">객관식</option>
+                <option value="주관식">주관식</option>
+            </select>
+            
+            <div class="btn-group">
+                <button type="button" class="secondary-btn" id="btnCloseCreate">취소</button>
+                <button type="button" class="primary-btn" id="btnCreateSubmit">만들기 완료</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 자바스크립트 로딩 완료 후 버튼 기능 연결 (가장 안전한 방식)
+        document.addEventListener('DOMContentLoaded', function() {
+            
+            let surveys = []; // 데이터 저장소
+
+            // 요소 가져오기
+            const adminLoginModal = document.getElementById('adminLoginModal');
+            const adminDashboard = document.getElementById('adminDashboard');
+            const createSurveyModal = document.getElementById('createSurveyModal');
+            
+            // 모달 열기/닫기 공통 함수
+            function openModal(element) { element.style.display = 'flex'; }
+            function closeModal(element) { element.style.display = 'none'; }
+
+            // 1) 메인 화면 버튼들
+            document.getElementById('btnSettings').addEventListener('click', function() {
+                openModal(adminLoginModal);
+            });
+
+            document.getElementById('btnGoogle').addEventListener('click', function() {
+                alert('구글 계정 연동 페이지로 이동합니다.');
+            });
+
+            document.getElementById('btnParticipate').addEventListener('click', function() {
+                if(surveys.length === 0) {
+                    alert('현재 진행 중인 설문이 없습니다.');
+                } else {
+                    alert('[' + surveys[0].title + '] 설문에 참여합니다!\n\n(실제 앱에서는 여기서 구글 폼으로 이동합니다.)');
+                }
+            });
+
+            // 2) 로그인 모달 버튼들
+            document.getElementById('btnCloseLogin').addEventListener('click', function() {
+                closeModal(adminLoginModal);
+            });
+
+            document.getElementById('btnLoginSubmit').addEventListener('click', function() {
+                const phone = document.getElementById('adminPhone').value;
+                const pin = document.getElementById('adminPin').value;
+                
+                if(phone.length > 8 && pin.length === 4) {
+                    closeModal(adminLoginModal);
+                    renderList();
+                    openModal(adminDashboard);
+                    // 입력창 초기화
+                    document.getElementById('adminPhone').value = '';
+                    document.getElementById('adminPin').value = '';
+                } else {
+                    alert('휴대폰 번호와 4자리 비밀번호를 정확히 입력하세요.');
+                }
+            });
+
+            // 3) 대시보드 모달 버튼들
+            document.getElementById('btnCloseDashboard').addEventListener('click', function() {
+                closeModal(adminDashboard);
+            });
+
+            document.getElementById('btnOpenCreate').addEventListener('click', function() {
+                closeModal(adminDashboard);
+                openModal(createSurveyModal);
+            });
+
+            // 4) 새로 만들기 모달 버튼들
+            document.getElementById('btnCloseCreate').addEventListener('click', function() {
+                closeModal(createSurveyModal);
+                openModal(adminDashboard);
+            });
+
+            document.getElementById('btnCreateSubmit').addEventListener('click', function() {
+                const title = document.getElementById('newSurveyTitle').value;
+                const type = document.getElementById('questionType').value;
+
+                if(title.trim() === '') {
+                    alert('제목을 반드시 입력해야 합니다.');
+                    return;
+                }
+
+                surveys.push({ title: title, type: type });
+                document.getElementById('newSurveyTitle').value = ''; // 초기화
+                
+                alert('설문지가 성공적으로 만들어졌습니다!');
+                
+                closeModal(createSurveyModal);
+                renderList();
+                openModal(adminDashboard);
+            });
+
+            // 5) 리스트 그리기 및 삭제 함수
+            function renderList() {
+                const listDiv = document.getElementById('surveyList');
+                if(surveys.length === 0) {
+                    listDiv.innerHTML = '<p style="color:#999; font-size:14px; text-align:center;">만든 설문지가 없습니다.</p>';
+                    return;
+                }
+                
+                listDiv.innerHTML = ''; // 비우고 다시 그리기
+                surveys.forEach(function(s, index) {
+                    const item = document.createElement('div');
+                    item.className = 'survey-list-item';
+                    item.innerHTML = `
+                        <span><strong>${s.title}</strong> (${s.type})</span>
+                        <span class="delete-text" data-index="${index}">삭제</span>
+                    `;
+                    listDiv.appendChild(item);
+                });
+
+                // 삭제 버튼 이벤트 연결
+                const deleteBtns = document.querySelectorAll('.delete-text');
+                deleteBtns.forEach(function(btn) {
+                    btn.addEventListener('click', function() {
+                        if(confirm('정말 삭제하시겠습니까?')) {
+                            const idx = this.getAttribute('data-index');
+                            surveys.splice(idx, 1);
+                            renderList();
+                        }
+                    });
+                });
+            }
+        });
+    </script>
+</body>
+</html>
